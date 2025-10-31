@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Лабиринт Ужаса</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: monospace, sans-serif;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        canvas {
+            border: 2px solid #333;
+            background: #111;
+            image-rendering: pixelated;
+        }
+        #scare {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: #fff;
+            font-size: 24px;
+            text-align: center;
+            z-index: 1000;
+            cursor: pointer;
+        }
+        #scare::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://er.ru/media/people/member_photos_site/photos_106096/photo-1635167022.jpg') center/cover no-repeat;
+            filter: grayscale(100%) contrast(200%) brightness(0.3);
+            animation: scareImage 1s infinite alternate;
+            z-index: -1;
+        }
+        @keyframes scareImage {
+            0% { filter: grayscale(100%) contrast(200%) brightness(0.3) hue-rotate(0deg); }
+            50% { filter: grayscale(0%) contrast(300%) brightness(1.5) hue-rotate(180deg); }
+            100% { filter: grayscale(50%) contrast(250%) brightness(0.8) hue-rotate(360deg); }
+        }
+        #scare h1 {
+            margin: 0;
+            font-size: clamp(32px, 8vw, 72px);
+            text-shadow: 0 0 20px #f00, 3px 3px 0 #000;
+            animation: pulseText 0.5s infinite;
+            letter-spacing: 5px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        @keyframes pulseText {
+            0%, 100% { transform: scale(1); color: #fff; text-shadow: 0 0 20px #f00; }
+            50% { transform: scale(1.2); color: #f00; text-shadow: 0 0 50px #fff; }
+        }
+        #restart {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 20px;
+            background: rgba(255,0,0,0.8);
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 10px;
+            display: none;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0) translateY(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-15px) translateY(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(15px) translateY(10px); }
+        }
+        @keyframes flash {
+            0%, 50% { background: #f00; }
+            51%, 100% { background: #000; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game" width="800" height="600"></canvas>
+    <div id="scare" onclick="location.reload()">
+        <h1>Эй, дон ты попался дон<br>ты пидор биляя дон</h1>
+        <button id="restart">Играть заново</button>
+    </div>
+
+    <!-- ГРОМКИЙ ЗВУК СВИНЬИ ИЗ ИНТЕРНЕТА -->
+    <audio id="pigSound" loop crossorigin="anonymous">
+        <!-- Самый громкий и резкий звук свиньи из интернета (SoundBible) -->
+        <source src="https://mp3hunter.ru/wp-content/uploads/2020/07/svinya-golos-3.mp3" type="audio/mpeg">
+        <!-- Резервные варианты (на случай, если первый не загрузится) -->
+        <source src="https://mp3hunter.ru/wp-content/uploads/2020/07/svinya-golos-3.mp3" type="audio/mpeg">
+        <source src="https://mp3hunter.ru/wp-content/uploads/2020/07/svinya-golos-3.mp3" type="audio/mpeg">
+        <source src="https://mp3hunter.ru/wp-content/uploads/2020/07/svinya-golos-3.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const scare = document.getElementById('scare');
+        const pigSound = document.getElementById('pigSound');
+        const restartBtn = document.getElementById('restart');
+
+        // Лабиринт
+        const maze = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,1,1,1,1,0,1,1,0,1],
+            [1,0,1,0,0,0,1,0,0,0,1,0,0,1,0,1],
+            [1,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1],
+            [1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+            [1,0,1,1,1,1,0,1,1,1,1,1,0,1,0,1],
+            [1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1],
+            [1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1],
+            [1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,1],
+            [1,0,1,1,1,0,1,0,0,1,0,1,1,1,0,1],
+            [1,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1],
+            [1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        const tileSize = 40;
+        const rows = maze.length;
+        const cols = maze[0].length;
+
+        let player = { x: 1, y: 1 };
+        let keys = {};
+        let gameRunning = true;
+
+        window.addEventListener('keydown', (e) => { 
+            keys[e.key.toLowerCase()] = true; 
+            if (!gameRunning && e.key === ' ') location.reload();
+        });
+        window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+        function drawMaze() {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    if (maze[y][x] === 1) {
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+                        ctx.strokeStyle = '#555';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
+                    }
+                }
+            }
+            // Выход
+            ctx.fillStyle = '#f00';
+            ctx.fillRect((cols-2) * tileSize + 5, (rows-2) * tileSize + 5, tileSize-10, tileSize-10);
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = '#0f0';
+            ctx.shadowColor = '#0f0';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(player.x * tileSize + tileSize / 2, player.y * tileSize + tileSize / 2, tileSize / 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function movePlayer() {
+            let newX = player.x;
+            let newY = player.y;
+            const speed = 1;
+
+            if (keys['arrowleft'] || keys['a']) newX -= speed;
+            if (keys['arrowright'] || keys['d']) newX += speed;
+            if (keys['arrowup'] || keys['w']) newY -= speed;
+            if (keys['arrowdown'] || keys['s']) newY += speed;
+
+            newX = Math.max(0, Math.min(cols-1, newX));
+            newY = Math.max(0, Math.min(rows-1, newY));
+
+            if (maze[Math.floor(newY)][Math.floor(newX)] === 0) {
+                player.x = newX;
+                player.y = newY;
+            }
+
+            if (Math.floor(player.x) === cols - 2 && Math.floor(player.y) === rows - 2) {
+                triggerScare();
+            }
+        }
+
+        function triggerScare() {
+            gameRunning = false;
+
+            // ГРОМКИЙ ЗВУК СВИНЬИ — МАКСИМАЛЬНАЯ ГРОМКОСТЬ
+            pigSound.volume = 1.0;
+            pigSound.loop = true;
+            pigSound.play().catch(e => {
+                console.log('Автовоспроизведение заблокировано. Кликни, чтобы разблокировать звук.');
+                // Если браузер блокирует — ждём клик
+                document.body.addEventListener('click', () => pigSound.play(), { once: true });
+            });
+
+            scare.style.display = 'flex';
+            document.body.style.background = '#000';
+            
+            // Эффекты ужаса
+            scare.style.animation = 'shake 0.3s infinite, flash 0.1s infinite';
+            
+            setTimeout(() => {
+                restartBtn.style.display = 'block';
+            }, 2000);
+        }
+
+        function gameLoop() {
+            if (gameRunning) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawMaze();
+                drawPlayer();
+                movePlayer();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        restartBtn.onclick = () => location.reload();
+        gameLoop();
+    </script>
+</body>
+</html>
